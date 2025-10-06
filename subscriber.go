@@ -3,12 +3,14 @@ package rabbit
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"fmt"
 
 	amqp "github.com/rabbitmq/amqp091-go"
+	"github.com/timmbarton/layout/log"
 	"github.com/timmbarton/utils/tracing"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	"go.uber.org/zap"
 )
 
 type NotificationHandler func(context.Context, amqp.Delivery)
@@ -21,10 +23,10 @@ func NewHandler[T any](
 		defer span.End()
 
 		span.SetAttributes(attribute.String("messageId", msg.MessageId))
-		log.Printf(
-			"received amqp message: \ntraceId: %s\n message: %s\n",
-			tracing.GetTraceID(span),
-			string(msg.Body),
+		log.Debug(
+			ctx,
+			"received amqp message",
+			log.Json("msg", msg),
 		)
 
 		n := new(T)
@@ -33,7 +35,13 @@ func NewHandler[T any](
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "error on unmarshalling amqp message")
-			log.Printf("error on unmarshalling amqp message into %T: %s\n", n, err.Error())
+			log.Error(
+				ctx,
+				"error on unmarshalling amqp message",
+				zap.Any("notification.type", fmt.Sprintf("%T", n)),
+				log.Json("notification", n),
+				zap.Error(err),
+			)
 
 			return
 		}
@@ -42,17 +50,22 @@ func NewHandler[T any](
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "error on handling notification")
-			log.Printf(
-				"error on handling notification\nnotification: %s (%T), error: %s\n",
-				string(msg.Body),
-				n,
-				err.Error(),
+			log.Error(
+				ctx,
+				"error on handling notification",
+				log.Json("msg", msg),
+				log.Json("notification", n),
+				zap.Error(err),
 			)
 
 			err = msg.Reject(true)
 			if err != nil {
 				span.SetStatus(codes.Error, "error on reject notification: "+err.Error())
-				log.Printf("error on reject notification: %s\n", err.Error())
+				log.Error(
+					ctx,
+					"error on reject notification",
+					zap.Error(err),
+				)
 
 				return
 			}
@@ -64,7 +77,11 @@ func NewHandler[T any](
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "error on ack amqp message")
-			log.Printf("error on ack amqp message: %s\n", err.Error())
+			log.Error(
+				ctx,
+				"error on ack amqp message",
+				zap.Error(err),
+			)
 
 			return
 		}

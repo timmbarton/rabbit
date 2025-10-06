@@ -3,11 +3,12 @@ package rabbit
 import (
 	"context"
 	"errors"
-	"log"
 	"sync"
 
 	amqp "github.com/rabbitmq/amqp091-go"
+	"github.com/timmbarton/layout/log"
 	"github.com/timmbarton/utils/tracing"
+	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -75,7 +76,7 @@ func (c *Connector) tryConnect(ctx context.Context) (err error) {
 		for range c.cfg.ReconnectionAttempts {
 			c.conn, connErr = amqp.Dial(c.uri.String())
 			if connErr != nil {
-				log.Printf("error on amqp.Dial: %s\n", connErr.Error())
+				log.Error(ctx, "error on amqp.Dial", zap.Error(connErr))
 				continue
 			}
 
@@ -94,7 +95,7 @@ func (c *Connector) tryConnect(ctx context.Context) (err error) {
 			return errors.New("!ok on connect to server")
 		}
 		if err != nil {
-			log.Printf("cant connect to amqp server: %s\n", err.Error())
+			log.Error(ctx, "cant connect to amqp server", zap.Error(err))
 			return err
 		}
 	case <-ctx.Done():
@@ -104,7 +105,7 @@ func (c *Connector) tryConnect(ctx context.Context) (err error) {
 	c.errGroup.Go(func() error {
 		closingErr := <-c.conn.NotifyClose(make(chan *amqp.Error))
 		if closingErr != nil {
-			log.Printf("AMQP Consumer closed with error: %s\n", closingErr.Error())
+			log.Error(ctx, "AMQP Consumer closed with error", zap.Error(closingErr))
 		} else {
 			return nil
 		}
@@ -119,7 +120,7 @@ func (c *Connector) tryGetChannel(ctx context.Context, ch **amqp.Channel) (err e
 	defer span.End()
 
 	if ch == nil {
-		return errors.New("nil ptr for amqp Channel")
+		return errors.New("nil ptr for amqp channel")
 	}
 
 	if *ch != nil && !(*ch).IsClosed() {
@@ -139,7 +140,7 @@ func (c *Connector) tryGetChannel(ctx context.Context, ch **amqp.Channel) (err e
 		for range c.cfg.ReconnectionAttempts {
 			*ch, connErr = c.conn.Channel()
 			if connErr != nil {
-				log.Printf("error on create amqp ch: %s\n", connErr.Error())
+				log.Error(ctx, "error on create amqp channel", zap.Error(connErr))
 				continue
 			}
 
