@@ -7,7 +7,6 @@ import (
 
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/timmbarton/layout/log"
-	"github.com/timmbarton/utils/tracing"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
@@ -58,9 +57,6 @@ func (c *Connector) GetName() string {
 }
 
 func (c *Connector) tryConnect(ctx context.Context) (err error) {
-	ctx, span := tracing.NewSpan(ctx)
-	defer span.End()
-
 	c.m.Lock()
 	defer c.m.Unlock()
 
@@ -116,9 +112,6 @@ func (c *Connector) tryConnect(ctx context.Context) (err error) {
 	return nil
 }
 func (c *Connector) tryGetChannel(ctx context.Context, ch **amqp.Channel) (err error) {
-	ctx, span := tracing.NewSpan(ctx)
-	defer span.End()
-
 	if ch == nil {
 		return errors.New("nil ptr for amqp channel")
 	}

@@ -6,7 +6,6 @@ import (
 	"sync"
 
 	amqp "github.com/rabbitmq/amqp091-go"
-	"github.com/timmbarton/utils/tracing"
 )
 
 type Publisher struct {
@@ -57,9 +56,6 @@ func (c *Publisher) GetName() string {
 }
 
 func (c *Publisher) Publish(ctx context.Context, queueName string, data any) error {
-	ctx, span := tracing.NewSpan(ctx)
-	defer span.End()
-
 	// берем закешированный канал
 	c.channelsMutex.Lock()
 	chwm, channelExists := c.channels[queueName]
